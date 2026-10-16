@@ -14,12 +14,11 @@
             user-select: none;
         }
 
-        /* Scrabble Board Colors */
-        .cell-normal { background-color: #7dd3fc; } /* Bleu clair */
-        .cell-ld { background-color: #1e3a8a; color: #fff; } /* Bleu foncé - Lettre Double */
-        .cell-lt { background-color: #f97316; color: #fff; } /* Orange - Lettre Triple */
-        .cell-md { background-color: #facc15; color: #000; } /* Jaune - Mot Double */
-        .cell-mt { background-color: #dc2626; color: #fff; } /* Rouge - Mot Triple */
+        .cell-normal { background-color: #7dd3fc; }
+        .cell-ld { background-color: #1e3a8a; color: #fff; }
+        .cell-lt { background-color: #f97316; color: #fff; }
+        .cell-md { background-color: #facc15; color: #000; }
+        .cell-mt { background-color: #dc2626; color: #fff; }
         .cell-center { 
             background: linear-gradient(135deg, #f59e0b, #b45309);
             color: #fff;
@@ -28,7 +27,6 @@
             font-weight: 800;
         }
 
-        /* Tile Style */
         .tile {
             background: linear-gradient(145deg, #fef3c7, #fde68a);
             border: 1px solid #d97706;
@@ -72,7 +70,6 @@
             color: #92400e;
         }
 
-        /* Custom Scrollbar */
         ::-webkit-scrollbar {
             width: 6px;
         }
@@ -93,7 +90,7 @@
 <body class="min-h-screen flex flex-col justify-between">
 
     <!-- Header -->
-    <header class="bg-slate-900 border-b border-slate-800 py-4 px-6 shadow-md text-center flex justify-between items-center max-w-7xl mx-auto w-full">
+    <header class="bg-slate-900 border-b border-slate-800 py-4 px-6 shadow-md flex justify-between items-center max-w-7xl mx-auto w-full">
         <h1 class="text-2xl sm:text-3xl font-extrabold tracking-wider text-amber-400">Scrabble Mathilde</h1>
         <div id="dict-status" class="text-xs px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-400 flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span> Chargement dictionnaire...
@@ -127,6 +124,16 @@
                 </div>
             </div>
 
+            <!-- Bot Level Selector -->
+            <div class="bg-slate-800/80 rounded-xl p-4 border border-slate-700 shadow-lg space-y-2">
+                <label for="bot-level" class="text-xs font-semibold text-slate-400 uppercase tracking-widest block">Niveau du Bot</label>
+                <select id="bot-level" onchange="changeBotLevel()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-amber-400 font-bold focus:outline-none focus:border-amber-500">
+                    <option value="easy">Facile (coups simples)</option>
+                    <option value="medium" selected>Intermédiaire (médiane)</option>
+                    <option value="expert">Expert (meilleurs coups)</option>
+                </select>
+            </div>
+
             <!-- Game Info -->
             <div class="bg-slate-800/80 rounded-xl p-4 border border-slate-700 shadow-lg space-y-2">
                 <div class="flex justify-between text-sm">
@@ -140,7 +147,7 @@
             </div>
 
             <!-- Action Logs -->
-            <div class="bg-slate-800/80 rounded-xl p-4 border border-slate-700 shadow-lg flex flex-col h-64">
+            <div class="bg-slate-800/80 rounded-xl p-4 border border-slate-700 shadow-lg flex flex-col h-52">
                 <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Historique</h2>
                 <div id="log-list" class="flex-1 overflow-y-auto space-y-1.5 text-xs text-slate-300 pr-1">
                     <div class="text-slate-400 italic">La partie commence. Bon jeu Mathilde !</div>
@@ -224,9 +231,6 @@
 
     <!-- Embedded Scripts -->
     <script>
-        /**
-         * OFFICIEL SCRABBLE FRANCE - DISTRIBUTION DES JETONS
-         */
         const LETTER_DISTRIBUTION = [
             { letter: 'A', points: 1, count: 9 }, { letter: 'B', points: 3, count: 2 },
             { letter: 'C', points: 3, count: 2 }, { letter: 'D', points: 2, count: 3 },
@@ -241,10 +245,9 @@
             { letter: 'U', points: 1, count: 6 }, { letter: 'V', points: 4, count: 2 },
             { letter: 'W', points: 10, count: 1 }, { letter: 'X', points: 10, count: 1 },
             { letter: 'Y', points: 10, count: 1 }, { letter: 'Z', points: 10, count: 1 },
-            { letter: '?', points: 0, count: 2 } // Jokers
+            { letter: '?', points: 0, count: 2 }
         ];
 
-        // Layout Bonus (15x15)
         const BOARD_BONUSES = [
             ['MT','..','..','LD','..','..','..','MT','..','..','..','LD','..','..','MT'],
             ['..','MD','..','..','..','LT','..','..','..','LT','..','..','..','MD','..'],
@@ -264,12 +267,10 @@
         ];
 
         let FRENCH_WORDS = new Set();
+        let WORDS_BY_LENGTH = {}; // Dictionnaire structuré par longueur de mot
 
-        // Chargement du dictionnaire complet ODS8 (411 000+ mots)
         async function loadOnlineDictionary() {
             const statusEl = document.getElementById('dict-status');
-            
-            // Liste de sources fiables CORS-friendly
             const sources = [
                 'https://cdn.jsdelivr.net/gh/Thecoolsim/French-Scrabble-ODS8@main/French%20ODS%20dictionary.txt',
                 'https://raw.githubusercontent.com/Thecoolsim/French-Scrabble-ODS8/main/French%20ODS%20dictionary.txt'
@@ -281,10 +282,17 @@
                     if (!response.ok) continue;
 
                     const text = await response.text();
-                    const wordsArray = text.split(/\r?\n/).map(w => w.trim().toUpperCase()).filter(w => w.length > 0);
+                    const wordsArray = text.split(/\r?\n/).map(w => w.trim().toUpperCase()).filter(w => w.length >= 2 && w.length <= 15);
                     
                     if (wordsArray.length > 100000) {
                         FRENCH_WORDS = new Set(wordsArray);
+                        WORDS_BY_LENGTH = {};
+                        for (let w of wordsArray) {
+                            let len = w.length;
+                            if (!WORDS_BY_LENGTH[len]) WORDS_BY_LENGTH[len] = [];
+                            WORDS_BY_LENGTH[len].push(w);
+                        }
+
                         if (statusEl) {
                             statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> ODS8 Chargé (${FRENCH_WORDS.size.toLocaleString()} mots)`;
                             statusEl.className = "text-xs px-3 py-1 rounded-full bg-slate-800 border border-emerald-500/30 text-emerald-400 flex items-center gap-2";
@@ -297,12 +305,11 @@
             }
 
             if (statusEl) {
-                statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400"></span> Mode Web requis (GitHub Pages)`;
+                statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400"></span> Problème réseau dictionnaire`;
                 statusEl.className = "text-xs px-3 py-1 rounded-full bg-slate-800 border border-amber-500/30 text-amber-300 flex items-center gap-2";
             }
         }
 
-        // Dynamique Board Array (15x15)
         let boardState = Array(15).fill(null).map(() => Array(15).fill(null));
         let bag = [];
         let playerRack = [];
@@ -311,9 +318,14 @@
         let botScore = 0;
         let isPlayerTurn = true;
         let firstMoveMade = false;
+        let botLevel = 'medium';
 
         let selectedRackTileIndex = null;
         let tempPlacedTiles = [];
+
+        function changeBotLevel() {
+            botLevel = document.getElementById('bot-level').value;
+        }
 
         function createBoardUI() {
             const boardEl = document.getElementById('board');
@@ -567,98 +579,126 @@
                 botCard.classList.add('border-amber-500/30');
                 playerCard.classList.remove('border-amber-500/30');
 
-                setTimeout(botPlayTurn, 1000);
+                setTimeout(botPlayTurn, 600);
             }
         }
 
         function botPlayTurn() {
-            let bestMove = findBestBotMove();
+            let selectedMove = selectBotMoveByDifficulty(botRack);
 
-            if (bestMove) {
-                bestMove.tilesPlaced.forEach(pt => {
+            if (selectedMove) {
+                selectedMove.tilesPlaced.forEach(pt => {
                     boardState[pt.r][pt.c] = pt.tile;
                     const idx = botRack.findIndex(t => t.letter === (pt.tile.isBlank ? '?' : pt.tile.letter));
                     if (idx !== -1) botRack.splice(idx, 1);
                 });
 
-                botScore += bestMove.score;
+                botScore += selectedMove.score;
                 document.getElementById('score-bot').innerText = botScore;
-                logAction(`ScrabbleBot a joué <b>${bestMove.word}</b> pour <b>+${bestMove.score} pts</b>.`);
+                logAction(`ScrabbleBot a joué <b>${selectedMove.word}</b> pour <b>+${selectedMove.score} pts</b>.`);
 
                 botRack.push(...drawTiles(7 - botRack.length));
                 firstMoveMade = true;
             } else {
-                logAction("ScrabbleBot passe son tour.");
+                if (bag.length >= 7) {
+                    bag.push(...botRack);
+                    for (let i = bag.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [bag[i], bag[j]] = [bag[j], bag[i]];
+                    }
+                    botRack = drawTiles(7);
+                    logAction("ScrabbleBot a changé ses lettres.");
+                } else {
+                    logAction("ScrabbleBot passe son tour.");
+                }
             }
 
             renderBoardState();
             switchTurn(true);
         }
 
-        function findBestBotMove() {
-            let possibleMoves = [];
+        function selectBotMoveByDifficulty(rack) {
+            let moves = findAllPossibleMoves(rack);
+
+            if (moves.length === 0) return null;
+
+            moves.sort((a, b) => a.score - b.score);
+
+            if (botLevel === 'easy') {
+                return moves[0];
+            } else if (botLevel === 'medium') {
+                let midIndex = Math.floor(moves.length / 2);
+                return moves[midIndex];
+            } else {
+                return moves[moves.length - 1];
+            }
+        }
+
+        function findAllPossibleMoves(rack) {
+            let validMoves = [];
 
             if (!firstMoveMade) {
-                for (let word of FRENCH_WORDS) {
-                    if (word.length < 2 || word.length > 7) continue;
-                    if (canFormWord(word, botRack)) {
-                        let tilesToPlace = [];
-                        let tempRack = [...botRack];
+                for (let len = 2; len <= 7; len++) {
+                    const wordList = WORDS_BY_LENGTH[len] || [];
+                    for (let word of wordList) {
+                        if (canFormWord(word, rack)) {
+                            let tilesToPlace = [];
+                            let tempRack = [...rack];
 
-                        for (let i = 0; i < word.length; i++) {
-                            let char = word[i];
-                            let matchIdx = tempRack.findIndex(t => t.letter === char);
-                            let tileObj;
-                            if (matchIdx !== -1) {
-                                tileObj = tempRack[matchIdx];
-                                tempRack.splice(matchIdx, 1);
-                            } else {
-                                matchIdx = tempRack.findIndex(t => t.letter === '?');
+                            for (let i = 0; i < word.length; i++) {
+                                let char = word[i];
+                                let matchIdx = tempRack.findIndex(t => t.letter === char);
+                                let tileObj;
                                 if (matchIdx !== -1) {
-                                    tileObj = { letter: char, points: 0, isBlank: true };
+                                    tileObj = tempRack[matchIdx];
                                     tempRack.splice(matchIdx, 1);
+                                } else {
+                                    matchIdx = tempRack.findIndex(t => t.letter === '?');
+                                    if (matchIdx !== -1) {
+                                        tileObj = { letter: char, points: 0, isBlank: true };
+                                        tempRack.splice(matchIdx, 1);
+                                    }
                                 }
+                                tilesToPlace.push({ r: 7, c: 7 + i, tile: tileObj });
                             }
-                            tilesToPlace.push({ r: 7, c: 7 + i, tile: tileObj });
-                        }
 
-                        const scoreRes = calculateMoveScore(tilesToPlace);
-                        if (scoreRes.valid) {
-                            possibleMoves.push({ word, score: scoreRes.score, tilesPlaced: tilesToPlace });
+                            const scoreRes = calculateMoveScore(tilesToPlace);
+                            if (scoreRes.valid) {
+                                validMoves.push({ word, score: scoreRes.score, tilesPlaced: tilesToPlace });
+                            }
                         }
                     }
-                    if (possibleMoves.length > 25) break;
                 }
             } else {
-                let checkedCount = 0;
+                let anchorCells = [];
                 for (let r = 0; r < 15; r++) {
                     for (let c = 0; c < 15; c++) {
-                        if (boardState[r][c] !== null) continue;
+                        if (boardState[r][c] === null && hasAdjacentTile(r, c)) {
+                            anchorCells.push({ r, c });
+                        }
+                    }
+                }
 
-                        if (hasAdjacentTile(r, c)) {
-                            for (let word of FRENCH_WORDS) {
-                                if (word.length > 7) continue;
+                for (let anchor of anchorCells) {
+                    for (let len = 2; len <= 8; len++) {
+                        const wordList = WORDS_BY_LENGTH[len] || [];
+                        for (let word of wordList) {
+                            for (let offset = 0; offset < word.length; offset++) {
+                                let startH = { r: anchor.r, c: anchor.c - offset };
+                                let moveH = tryPlaceWordAt(word, startH.r, startH.c, 'H', rack);
+                                if (moveH) validMoves.push(moveH);
 
-                                const hMove = tryPlaceWordAt(word, r, c, 'H', botRack);
-                                if (hMove) possibleMoves.push(hMove);
-
-                                const vMove = tryPlaceWordAt(word, r, c, 'V', botRack);
-                                if (vMove) possibleMoves.push(vMove);
-
-                                checkedCount++;
-                                if (possibleMoves.length >= 30 || checkedCount > 5000) break;
+                                let startV = { r: anchor.r - offset, c: anchor.c };
+                                let moveV = tryPlaceWordAt(word, startV.r, startV.c, 'V', rack);
+                                if (moveV) validMoves.push(moveV);
                             }
                         }
-                        if (possibleMoves.length >= 30) break;
                     }
-                    if (possibleMoves.length >= 30) break;
+                    if (validMoves.length > 150) break;
                 }
             }
 
-            if (possibleMoves.length === 0) return null;
-
-            possibleMoves.sort((a, b) => b.score - a.score);
-            return possibleMoves[0];
+            return validMoves;
         }
 
         function hasAdjacentTile(r, c) {
@@ -673,6 +713,8 @@
         }
 
         function tryPlaceWordAt(word, r, c, dir, currentRack) {
+            if (r < 0 || c < 0) return null;
+
             let tilesToPlace = [];
             let tempRack = [...currentRack];
 
@@ -881,12 +923,10 @@
             hintBox.innerText = "Recherche d'un coup possible...";
 
             setTimeout(() => {
-                let tempBotRack = [...botRack];
-                botRack = [...playerRack];
-                let bestHint = findBestBotMove();
-                botRack = tempBotRack;
-
-                if (bestHint) {
+                let allMoves = findAllPossibleMoves(playerRack);
+                if (allMoves.length > 0) {
+                    allMoves.sort((a, b) => b.score - a.score);
+                    let bestHint = allMoves[0];
                     hintBox.innerHTML = `Suggestion : <b class="text-amber-400 font-bold">${bestHint.word}</b> pour environ <b class="text-emerald-400 font-bold">+${bestHint.score} pts</b>.`;
                 } else {
                     hintBox.innerText = "Aucun mot évident trouvé. Pensez à échanger ou passer.";
